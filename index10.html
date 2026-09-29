@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>점심·저녁 메뉴 룰렛</title>
+    <!-- Tailwind CSS for modern responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        /* Custom roulette canvas styling */
+        #rouletteCanvas {
+            transition: transform 4s cubic-bezier(0.15, 0.85, 0.12, 1);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col items-center justify-between p-4 sm:p-6">
+
+    <header class="w-full max-w-4xl text-center mb-6">
+        <h1 class="text-2xl sm:text-4xl font-black text-amber-600 tracking-tight mb-2">🍽️ 오늘 뭐 먹지? 메뉴 룰렛</h1>
+        <p class="text-sm sm:text-base text-slate-500">고민은 그만! 조건에 맞춰 메뉴를 고르고 룰렛을 돌려보세요.</p>
+    </header>
+
+    <main class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        
+        <!-- Left Panel: Filters & Menu Management -->
+        <section class="bg-white p-5 rounded-2xl shadow-lg border border-slate-200 flex flex-col justify-between space-y-6">
+            
+            <!-- Filters -->
+            <div>
+                <h2 class="text-lg font-bold text-amber-700 mb-3 flex items-center gap-2">
+                    <span>🔍</span> 조건 필터링
+                </h2>
+                <div class="space-y-3 text-sm">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">가격대 선택</label>
+                        <select id="filterPrice" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-500">
+                            <option value="all">전체 가격대</option>
+                            <option value="저렴">저렴 (1만원 이하)</option>
+                            <option value="보통">보통 (1만~1.5만원)</option>
+                            <option value="든든">든든 (1.5만원 이상)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">매운맛 여부</label>
+                        <select id="filterSpicy" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-500">
+                            <option value="all">상관없음</option>
+                            <option value="false">안 매운 것만 🟢</option>
+                            <option value="true">매운 것만 🌶️</option>
+                        </select>
+                    </div>
+
+                    <div class="pt-2">
+                        <label class="flex items-center gap-2 cursor-pointer bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                            <input type="checkbox" id="excludeWeekHistory" class="w-4 h-4 text-amber-600 rounded bg-white border-slate-300 focus:ring-amber-500">
+                            <span class="text-xs font-medium text-slate-700">이번 주 먹은 메뉴 자동 제외</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Menu Management Modal Trigger / Accordion -->
+            <div class="border-t border-slate-200 pt-4">
+                <h2 class="text-lg font-bold text-amber-700 mb-3 flex items-center gap-2">
+                    <span>📝</span> 메뉴 후보 관리
+                </h2>
+                
+                <!-- Add new menu form -->
+                <div class="space-y-2 mb-3">
+                    <input type="text" id="newMenuName" placeholder="메뉴 이름 입력" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                    <div class="grid grid-cols-2 gap-2">
+                        <select id="newMenuPrice" class="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 text-xs text-slate-800 focus:outline-none">
+                            <option value="저렴">저렴</option>
+                            <option value="보통" selected>보통</option>
+                            <option value="든든">든든</option>
+                        </select>
+                        <select id="newMenuSpicy" class="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 text-xs text-slate-800 focus:outline-none">
+                            <option value="false">안 매움</option>
+                            <option value="true">매움 🌶️</option>
+                        </select>
+                    </div>
+                    <button id="addMenuBtn" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 rounded-xl text-xs transition active:scale-95 shadow-md">
+                        + 메뉴 추가하기
+                    </button>
+                </div>
+
+                <!-- Menu List Container -->
+                <div id="menuListContainer" class="max-h-40 overflow-y-auto space-y-1.5 pr-1 text-xs">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right Panel: Roulette Wheel & Result -->
+        <section class="md:col-span-2 bg-white p-5 rounded-2xl shadow-lg border border-slate-200 flex flex-col items-center justify-between">
+            
+            <div class="w-full flex justify-between items-center mb-2">
+                <span id="activeCountBadge" class="text-xs bg-amber-50 text-amber-800 px-3 py-1 rounded-full font-semibold border border-amber-200">
+                    활성 메뉴: 0개
+                </span>
+                <span id="rerollChanceBadge" class="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full font-semibold border border-indigo-200">
+                    다시 돌리기 기회: <span id="rerollCountDisplay" class="font-bold text-indigo-900">2</span>회 남음
+                </span>
+            </div>
+
+            <!-- Roulette Wheel Visual Container -->
+            <div class="relative my-4 flex items-center justify-center">
+                <!-- Pointer triangle -->
+                <div class="absolute -top-3 z-20 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[20px] border-t-amber-500 filter drop-shadow"></div>
+                
+                <!-- Roulette Canvas Container -->
+                <div class="w-64 h-64 sm:w-72 sm:h-72 rounded-full border-8 border-amber-100 shadow-xl overflow-hidden relative bg-amber-50 flex items-center justify-center">
+                    <canvas id="rouletteCanvas" width="320" height="320" class="w-full h-full"></canvas>
+                    <div class="absolute w-14 h-14 rounded-full bg-amber-500 border-4 border-white shadow-md flex items-center justify-center text-xs font-black text-white z-10">
+                        PICK
+                    </div>
+                </div>
+            </div>
+
+            <!-- Result Announcement Box -->
+            <div id="resultBox" class="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl text-center mb-4 transition-all duration-300">
+                <span class="text-xs text-slate-500 block mb-1">오늘의 추천 메뉴</span>
+                <div id="resultText" class="text-xl sm:text-2xl font-black text-amber-600">룰렛을 돌려주세요!</div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="w-full grid grid-cols-2 gap-3">
+                <button id="spinBtn" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition duration-200 text-sm flex items-center justify-center gap-2 active:scale-95">
+                    <span>🎲</span> 룰렛 돌리기
+                </button>
+                <button id="rerollBtn" disabled class="bg-slate-200 text-slate-400 font-bold py-3.5 px-4 rounded-xl shadow transition duration-200 text-sm flex items-center justify-center gap-2 cursor-not-allowed">
+                    <span>🔄</span> 다시 돌리기 (<span id="rerollBtnCount">2</span>)
+                </button>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Weekly History Section -->
+    <section class="w-full max-w-4xl bg-white p-5 rounded-2xl shadow-lg border border-slate-200 mb-6">
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                <span>📅</span> 이번 주 먹은 기록
+            </h2>
+            <button id="clearHistoryBtn" class="text-[10px] text-slate-400 hover:text-rose-500 underline transition">
+                기록 초기화
+            </button>
+        </div>
+        <div id="historyListContainer" class="flex flex-wrap gap-2 text-xs">
+            <span class="text-slate-400 italic">이번 주에 먹은 메뉴가 없습니다.</span>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="w-full max-w-4xl text-center text-xs text-slate-400 py-4 border-t border-slate-200">
+        점심·저녁 메뉴 룰렛 • 외부 라이브러리 없이 독립적으로 실행됩니다.
+    </footer>
+
+    <script>
+        // Default initial menus (8 items: 한식, 중식, 일식, 양식, 분식 등)
+        let menus = [
+            { id: 1, name: '김치찌개', price: '저렴', spicy: true, category: '한식' },
+            { id: 2, name: '짜장면/짬뽕', price: '보통', spicy: false, category: '중식' },
+            { id: 3, name: '초밥/돈카츠', price: '든든', spicy: false, category: '일식' },
+            { id: 4, name: '파스타/피자', price: '든든', spicy: false, category: '양식' },
+            { id: 5, name: '떡볶이/순대', price: '저렴', spicy: true, category: '분식' },
+            { id: 6, name: '제육볶음', price: '보통', spicy: true, category: '한식' },
+            { id: 7, name: '햄버거 세트', price: '보통', spicy: false, category: '패스트푸드' },
+            { id: 8, name: '쌀국수', price: '보통', spicy: false, category: '아시안' }
+        ];
+
+        let weekHistory = []; // list of menu names eaten this week
+        let rerollCount = 2;
+        let isSpinning = false;
+        let currentRotation = 0;
+
+        // DOM Elements
+        const filterPrice = document.getElementById('filterPrice');
+        const filterSpicy = document.getElementById('filterSpicy');
+        const excludeWeekHistory = document.getElementById('excludeWeekHistory');
+        const newMenuName = document.getElementById('newMenuName');
+        const newMenuPrice = document.getElementById('newMenuPrice');
+        const newMenuSpicy = document.getElementById('newMenuSpicy');
+        const addMenuBtn = document.getElementById('addMenuBtn');
+        const menuListContainer = document.getElementById('menuListContainer');
+        
+        const rouletteCanvas = document.getElementById('rouletteCanvas');
+        const ctx = rouletteCanvas.getContext('2d');
+        const activeCountBadge = document.getElementById('activeCountBadge');
+        const rerollCountDisplay = document.getElementById('rerollCountDisplay');
+        const rerollBtnCount = document.getElementById('rerollBtnCount');
+        const resultBox = document.getElementById('resultBox');
+        const resultText = document.getElementById('resultText');
+        const spinBtn = document.getElementById('spinBtn');
+        const rerollBtn = document.getElementById('rerollBtn');
+        const historyListContainer = document.getElementById('historyListContainer');
+        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+
+        // Filter menus based on user selections
+        function getFilteredMenus() {
+            const priceVal = filterPrice.value;
+            const spicyVal = filterSpicy.value;
+            const excludeHistory = excludeWeekHistory.checked;
+
+            return menus.filter(menu => {
+                if (priceVal !== 'all' && menu.price !== priceVal) return false;
+                if (spicyVal !== 'all' && String(menu.spicy) !== spicyVal) return false;
+                if (excludeHistory && weekHistory.includes(menu.name)) return false;
+                return true;
+            });
+        }
+
+        // Render Menu list management UI
+        function renderMenuList() {
+            menuListContainer.innerHTML = '';
+            if (menus.length === 0) {
+                menuListContainer.innerHTML = '<div class="text-slate-400 italic text-center py-2">등록된 메뉴가 없습니다.</div>';
+                return;
+            }
+
+            menus.forEach(menu => {
+                const item = document.createElement('div');
+                item.className = 'flex justify-between items-center bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl';
+                item.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-slate-800">${menu.name}</span>
+                        <span class="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">${menu.price}</span>
+                        ${menu.spicy ? '<span class="text-[10px] text-rose-600">🌶️매움</span>' : ''}
+                    </div>
+                    <button onclick="deleteMenu(${menu.id})" class="text-slate-400 hover:text-rose-500 font-bold px-1.5 py-0.5 transition">✕</button>
+                `;
+                menuListContainer.appendChild(item);
+            });
+        }
+
+        // Delete menu
+        window.deleteMenu = function(id) {
+            menus = menus.filter(m => m.id !== id);
+            renderMenuList();
+            drawRoulette();
+        }
+
+        // Add menu
+        addMenuBtn.addEventListener('click', () => {
+            const name = newMenuName.value.trim();
+            if (!name) {
+                alert('메뉴 이름을 입력해주세요.');
+                return;
+            }
+            const newItem = {
+                id: Date.now(),
+                name: name,
+                price: newMenuPrice.value,
+                spicy: newMenuSpicy.value === 'true',
+                category: '기타'
+            };
+            menus.push(newItem);
+            newMenuName.value = '';
+            renderMenuList();
+            drawRoulette();
+        });
+
+        // Draw Roulette Wheel on Canvas
+        function drawRoulette() {
+            const activeMenus = getFilteredMenus();
+            activeCountBadge.textContent = `활성 메뉴: ${activeMenus.length}개`;
+
+            const width = rouletteCanvas.width;
+            const height = rouletteCanvas.height;
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const radius = Math.min(centerX, centerY) - 8;
+
+            ctx.clearRect(0, 0, width, height);
+
+            if (activeMenus.length === 0) {
+                ctx.fillStyle = '#fef3c7';
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.fillStyle = '#b45309';
+                ctx.font = 'bold 13px "Noto Sans KR"';
+                ctx.textAlign = 'center';
+                ctx.fillText('조건에 맞는 메뉴가 없어요!', centerX, centerY);
+                return;
+            }
+
+            const sliceAngle = (2 * Math.PI) / activeMenus.length;
+            const colors = [
+                '#fef08a', '#fed7aa', '#fbcfe8', '#e9d5ff', 
+                '#bae6fd', '#bbf7d0', '#fef08a', '#fed7aa'
+            ];
+
+            activeMenus.forEach((menu, index) => {
+                const startAngle = index * sliceAngle;
+                const endAngle = (index + 1) * sliceAngle;
+
+                // 1. Draw Slice
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+                ctx.closePath();
+                ctx.fillStyle = colors[index % colors.length];
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // 2. Draw Text
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(startAngle + sliceAngle / 2);
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#334155';
+                ctx.font = 'bold 11px "Noto Sans KR"';
+                ctx.fillText(menu.name, radius - 18, 4);
+                ctx.restore();
+            });
+        }
+
+        // Spin Logic
+        function spinRoulette(isReroll = false) {
+            const activeMenus = getFilteredMenus();
+            if (activeMenus.length === 0) {
+                alert('룰렛에 참여할 수 있는 활성 메뉴가 없습니다. 조건을 확인해주세요!');
+                return;
+            }
+
+            if (isSpinning) return;
+            isSpinning = true;
+            spinBtn.disabled = true;
+            rerollBtn.disabled = true;
+
+            resultText.textContent = '룰렛이 돌아가는 중... 🌀';
+            resultBox.classList.remove('bg-amber-50', 'border-amber-300');
+            resultBox.classList.add('bg-slate-100');
+
+            const randomIndex = Math.floor(Math.random() * activeMenus.length);
+            const sliceAngle = 360 / activeMenus.length;
+            
+            // Random extra spins (5 to 8 full rotations) + target slice angle
+            const extraSpins = 360 * (5 + Math.floor(Math.random() * 4));
+            const targetAngle = extraSpins + (360 - (randomIndex * sliceAngle + sliceAngle / 2));
+
+            currentRotation += targetAngle;
+            rouletteCanvas.style.transform = `rotate(${currentRotation}deg)`;
+
+            setTimeout(() => {
+                isSpinning = false;
+                const selectedMenu = activeMenus[randomIndex];
+                resultText.textContent = `🎉 ${selectedMenu.name} (${selectedMenu.price} / ${selectedMenu.spicy ? '매움🌶️' : '안매움🟢'})`;
+                resultBox.classList.remove('bg-slate-100');
+                resultBox.classList.add('bg-amber-50', 'border-amber-300');
+
+                // Add to weekly history
+                if (!weekHistory.includes(selectedMenu.name)) {
+                    weekHistory.push(selectedMenu.name);
+                    renderHistory();
+                }
+
+                spinBtn.disabled = false;
+                if (!isReroll && rerollCount > 0) {
+                    rerollBtn.disabled = false;
+                    rerollBtn.classList.remove('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
+                    rerollBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-500', 'text-white', 'cursor-pointer', 'active:scale-95');
+                }
+            }, 4000);
+        }
+
+        // Render weekly history
+        function renderHistory() {
+            if (weekHistory.length === 0) {
+                historyListContainer.innerHTML = '<span class="text-slate-400 italic">이번 주에 먹은 메뉴가 없습니다.</span>';
+                return;
+            }
+            historyListContainer.innerHTML = '';
+            weekHistory.forEach(menuName => {
+                const tag = document.createElement('span');
+                tag.className = 'bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full font-semibold border border-amber-200 text-xs';
+                tag.textContent = menuName;
+                historyListContainer.appendChild(tag);
+            });
+        }
+
+        // Event Listeners
+        spinBtn.addEventListener('click', () => spinRoulette(false));
+
+        rerollBtn.addEventListener('click', () => {
+            if (rerollCount > 0) {
+                rerollCount--;
+                rerollCountDisplay.textContent = rerollCount;
+                rerollBtnCount.textContent = rerollCount;
+                if (rerollCount === 0) {
+                    rerollBtn.disabled = true;
+                    rerollBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500', 'text-white', 'cursor-pointer', 'active:scale-95');
+                    rerollBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
+                }
+                spinRoulette(true);
+            }
+        });
+
+        clearHistoryBtn.addEventListener('click', () => {
+            weekHistory = [];
+            renderHistory();
+            drawRoulette();
+        });
+
+        filterPrice.addEventListener('change', drawRoulette);
+        filterSpicy.addEventListener('change', drawRoulette);
+        excludeWeekHistory.addEventListener('change', drawRoulette);
+
+        // Initial load
+        renderMenuList();
+        renderHistory();
+        drawRoulette();
+    </script>
+</body>
+</html>
